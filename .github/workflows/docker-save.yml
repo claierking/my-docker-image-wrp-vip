@@ -1,0 +1,38 @@
+name: Docker Image Save to Release
+
+on:
+  workflow_dispatch: # 支持手动触发
+    inputs:
+      image_name:
+        description: '输入完整的 Docker 镜像名 (例如: 644803952/wvp-pro:latest)'
+        required: true
+        default: '644803952/wvp-pro:latest'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pull and Save Docker Image
+        run: |
+          # 1. 拉取镜像 (AMD64 架构，确保兼容大多数服务器)
+          docker pull --platform linux/amd64 ${{ github.event.inputs.image_name }}
+          
+          # 2. 处理文件名（去掉斜杠和冒号）
+          FILE_NAME=$(echo "${{ github.event.inputs.image_name }}" | sed 's/[\/:]/_/g').tar
+          
+          # 3. 保存镜像为 tar
+          docker save -o $FILE_NAME ${{ github.event.inputs.image_name }}
+          echo "FILE_NAME=$FILE_NAME" >> $GITHUB_ENV
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.FILE_NAME }}
+          tag_name: v${{ github.run_number }}
+          name: Docker Image Release ${{ github.run_number }}
+          body: "镜像文件: ${{ github.event.inputs.image_name }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
